@@ -1,6 +1,22 @@
 import { sql } from "@vercel/postgres";
 import { archiverRapport } from "./_drive.js";
 
+// Détection automatique de la chaîne de connexion Postgres, quel que soit
+// le nom de variable choisi par l'intégration Neon (POSTGRES_URL,
+// DATABASE_URL, STORAGE_URL, STORAGE_POSTGRES_URL, etc.)
+if (!process.env.POSTGRES_URL) {
+  const candidat =
+    process.env.DATABASE_URL ||
+    Object.entries(process.env).find(
+      ([k, v]) =>
+        typeof v === "string" &&
+        (v.startsWith("postgres://") || v.startsWith("postgresql://")) &&
+        !k.includes("UNPOOLED") &&
+        !k.includes("NO_SSL")
+    )?.[1];
+  if (candidat) process.env.POSTGRES_URL = candidat;
+}
+
 async function assurerTable() {
   await sql`CREATE TABLE IF NOT EXISTS rapports (
     id TEXT PRIMARY KEY,
@@ -28,8 +44,6 @@ export default async function handler(req, res) {
         await sql`INSERT INTO rapports (id, data, created)
                   VALUES (${item.id}, ${JSON.stringify(item)}, ${item.date})
                   ON CONFLICT (id) DO NOTHING`;
-        // Archivage Drive (photo + fiche) — non bloquant pour la réponse,
-        // mais on attend avec un garde-fou pour rester dans la durée de vie serverless.
         try {
           await archiverRapport(item);
         } catch (e) {
