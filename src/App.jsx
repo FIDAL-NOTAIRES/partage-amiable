@@ -142,6 +142,11 @@ function moyenne(avis) {
   return notes.reduce((s, a) => s + a.note, 0) / notes.length;
 }
 
+function srcAffiche(it) {
+  // Photo officielle (via le relais /api/photo) si disponible, sinon la photo prise
+  return it.photoOff ? `/api/photo?u=${encodeURIComponent(it.photoOff)}` : it.photo;
+}
+
 async function apiJson(url, options) {
   const r = await fetch(url, options);
   if (!r.ok) throw new Error(`API ${url} : ${r.status}`);
@@ -190,6 +195,84 @@ function PictoBouteille({ taille = 22, couleur = C.teal }) {
   );
 }
 
+const ROUGE_CARTE = "#E2604C";
+
+// Position approximative des vignobles sur la carte stylisée (viewBox 0 0 100 100)
+const REGIONS_CARTE = [
+  ["bordeaux", 30.2, 63.5],
+  ["bordelais", 30.2, 63.5],
+  ["médoc", 28.4, 60.0],
+  ["saint-émilion", 33.1, 63.0],
+  ["bourgogne", 66.4, 42.2],
+  ["chablis", 59.5, 34.6],
+  ["côte de nuits", 67.2, 40.7],
+  ["côte de beaune", 66.4, 42.2],
+  ["beaujolais", 65.0, 51.2],
+  ["mâcon", 66.4, 49.2],
+  ["champagne", 60.6, 22.7],
+  ["alsace", 83.3, 32.0],
+  ["loire", 38.7, 38.7],
+  ["sancerre", 53.0, 39.3],
+  ["muscadet", 23.7, 40.4],
+  ["anjou", 30.3, 37.9],
+  ["touraine", 38.7, 38.7],
+  ["vouvray", 39.4, 38.5],
+  ["rhône", 66.4, 62.6],
+  ["hermitage", 66.4, 61.2],
+  ["châteauneuf", 66.4, 71.1],
+  ["côte-rôtie", 66.2, 57.3],
+  ["provence", 74.2, 76.5],
+  ["bandol", 72.5, 80.0],
+  ["languedoc", 57.5, 76.5],
+  ["roussillon", 53.4, 84.4],
+  ["sud-ouest", 40.8, 72.6],
+  ["cahors", 43.7, 67.3],
+  ["madiran", 33.7, 76.0],
+  ["gascogne", 34.1, 74.5],
+  ["jurançon", 31.4, 78.7],
+  ["jura", 72.7, 43.5],
+  ["savoie", 74.2, 56.1],
+  ["cognac", 31.9, 55.2],
+  ["charentes", 31.9, 55.2],
+  ["armagnac", 34.7, 73.1],
+  ["corse", 93.6, 89.1],
+];
+
+function pointRegion(region) {
+  const r = (region || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+  if (!r) return null;
+  for (const [nom, x, y] of REGIONS_CARTE) {
+    const n = nom.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    if (r.includes(n)) return { x, y };
+  }
+  return null;
+}
+
+function CarteFrance({ region, taille = 64 }) {
+  const pt = pointRegion(region);
+  if (!pt) return null;
+  return (
+    <svg width={taille} height={taille} viewBox="0 0 100 100" fill="none" aria-label={`Vignoble : ${region}`}>
+      {/* France métropolitaine (contour géographique réel simplifié) */}
+      <path
+        d="M81.8 37.6 L74.9 46.6 L73.9 50.9 L76.2 50.0 L76.2 48.6 L79.6 48.4 L81.2 53.0 L79.6 54.9 L82.1 58.0 L81.4 59.9 L78.4 60.9 L81.0 63.6 L79.9 66.5 L80.9 69.3 L85.5 69.9 L84.4 73.7 L79.2 77.3 L78.5 79.7 L75.2 81.1 L69.8 79.3 L69.6 77.9 L66.6 76.9 L66.5 78.1 L65.2 78.0 L60.9 76.0 L54.8 80.5 L55.3 86.8 L47.5 87.7 L45.7 85.1 L38.8 82.7 L38.5 84.4 L30.3 83.5 L29.0 81.7 L24.4 80.9 L24.8 78.8 L22.5 78.5 L24.4 75.1 L25.7 66.3 L27.4 65.3 L26.3 64.1 L25.6 65.5 L27.5 56.3 L25.8 55.1 L26.6 49.4 L21.9 47.4 L19.7 44.2 L20.8 42.2 L19.0 41.2 L19.6 39.9 L17.0 39.7 L17.9 37.7 L15.2 37.8 L14.6 37.1 L16.1 36.3 L14.2 36.1 L13.1 37.9 L13.1 35.2 L12.6 36.2 L11.4 34.4 L11.0 35.7 L10.4 34.1 L10.4 35.1 L8.3 34.8 L6.5 32.9 L6.1 34.7 L4.8 34.7 L4.1 32.4 L2.4 32.4 L5.5 31.3 L3.1 30.0 L6.7 30.3 L4.3 29.6 L5.5 28.5 L2.0 28.7 L3.7 26.6 L7.5 25.7 L8.3 26.9 L10.6 24.6 L13.5 24.2 L13.2 25.4 L13.9 24.8 L16.1 28.0 L18.6 26.1 L20.7 28.0 L21.1 26.0 L25.0 26.6 L23.6 25.5 L23.6 20.9 L21.1 16.0 L25.6 16.3 L26.5 19.6 L33.5 20.2 L36.3 18.8 L34.5 18.1 L35.4 16.1 L45.3 11.6 L44.6 4.9 L51.1 2.8 L52.7 6.3 L55.1 5.7 L58.9 10.4 L62.2 10.7 L62.1 13.8 L65.5 13.4 L66.3 11.7 L66.5 15.4 L70.6 18.2 L75.8 18.1 L79.1 21.5 L83.9 21.3 L89.1 23.3 L84.7 31.6 L84.8 36.9 L83.5 38.3 Z"
+        fill="#0E1C2E"
+        stroke="#3A557A"
+        strokeWidth="1.3"
+        strokeLinejoin="round"
+      />
+      {/* Corse */}
+      <path d="M96.9 92.4 L96.0 96.8 L94.9 97.0 L92.8 95.3 L93.7 94.1 L92.0 93.6 L92.9 92.1 L91.6 92.1 L92.6 90.6 L91.2 88.8 L92.3 85.5 L96.4 84.4 L97.1 81.2 L98.0 89.2 Z" fill="#0E1C2E" stroke="#3A557A" strokeWidth="1.1" strokeLinejoin="round" />
+      {/* Zone du vignoble */}
+      <circle cx={pt.x} cy={pt.y} r="9" fill={ROUGE_CARTE} opacity="0.25" />
+      <circle cx={pt.x} cy={pt.y} r="4.5" fill={ROUGE_CARTE} />
+    </svg>
+  );
+}
+
 function Coeur({ plein, taille = 18 }) {
   return (
     <svg width={taille} height={taille} viewBox="0 0 24 24" fill={plein ? OCRE : "none"} aria-hidden="true">
@@ -200,35 +283,6 @@ function Coeur({ plein, taille = 18 }) {
         strokeLinejoin="round"
       />
     </svg>
-  );
-}
-
-/* ---------- étoiles 1 à 10 ---------- */
-
-function Etoiles({ note, surChoix = null, taille = 17 }) {
-  return (
-    <span style={{ display: "inline-flex", gap: 2 }}>
-      {Array.from({ length: 10 }, (_, i) => {
-        const active = i < Math.round(note);
-        return (
-          <span
-            key={i}
-            onClick={surChoix ? () => surChoix(i + 1) : undefined}
-            style={{
-              fontSize: taille,
-              lineHeight: 1,
-              cursor: surChoix ? "pointer" : "default",
-              color: active ? C.teal : "#2B405C",
-              userSelect: "none",
-            }}
-            role={surChoix ? "button" : undefined}
-            aria-label={surChoix ? `Note ${i + 1} sur 10` : undefined}
-          >
-            ★
-          </span>
-        );
-      })}
-    </span>
   );
 }
 
@@ -244,6 +298,11 @@ export default function App() {
   const [chargement, setChargement] = useState(false);
   const [erreur, setErreur] = useState("");
   const [tri, setTri] = useState("recents"); // recents | aimes | notes
+  const [recherche, setRecherche] = useState("");
+  const [filtreCouleur, setFiltreCouleur] = useState("");
+  const [filtreRegion, setFiltreRegion] = useState("");
+  const [compact, setCompact] = useState(false);
+  const [deplies, setDeplies] = useState({});
   const [formOuvert, setFormOuvert] = useState(false);
   const [zoom, setZoom] = useState(null);
   const [aimes, setAimes] = useState(() => {
@@ -344,6 +403,13 @@ export default function App() {
         detail: fDetail.trim(),
         region: fInfos?.region || "",
         couleur: fInfos?.couleur || "",
+        guide: fInfos?.guide || "",
+        noteGuide: fInfos?.noteGuide || "",
+        commentaireGuide: fInfos?.commentaireGuide || "",
+        prixMoyen: fInfos?.prixMoyen || "",
+        accords: fInfos?.accords || "",
+        apogee: fInfos?.apogee || "",
+        photoOff: fInfos?.photoUrl && /^https:\/\//.test(fInfos.photoUrl) ? fInfos.photoUrl : "",
         sensations: fSensations,
         photo: fPhoto,
         par: prenom || "Anonyme",
@@ -418,6 +484,23 @@ export default function App() {
     if (tri === "aimes") return (b.likes || 0) - (a.likes || 0);
     if (tri === "notes") return (moyenne(b.avis) || 0) - (moyenne(a.avis) || 0);
     return b.date - a.date;
+  });
+
+  const regionsPresentes = [...new Set(items.map((i) => i.region).filter(Boolean))].sort((a, b) =>
+    a.localeCompare(b, "fr")
+  );
+
+  const filtrés = triés.filter((it) => {
+    if (filtreCouleur && !(it.couleur || "").toLowerCase().includes(filtreCouleur)) return false;
+    if (filtreRegion && it.region !== filtreRegion) return false;
+    const q = recherche.trim().toLowerCase();
+    if (q) {
+      const txt = [it.nom, it.detail, it.region, it.par, (it.sensations || []).join(" ")]
+        .join(" ")
+        .toLowerCase();
+      if (!txt.includes(q)) return false;
+    }
+    return true;
   });
 
   /* ---------- écran d'accueil ---------- */
@@ -519,6 +602,153 @@ export default function App() {
     );
   }
 
+  /* ---------- catalogue imprimable ---------- */
+
+  if (ecran === "catalogue") {
+    const NAVY = "#13233A";
+    const parRegion = {};
+    for (const it of [...items].sort((a, b) => (moyenne(b.avis) || 0) - (moyenne(a.avis) || 0))) {
+      const r = it.region || "Autres";
+      (parRegion[r] = parRegion[r] || []).push(it);
+    }
+    const regions = Object.keys(parRegion).sort((a, b) => a.localeCompare(b, "fr"));
+    return (
+      <div style={{ background: "#FFFFFF", color: NAVY, minHeight: "100vh", ...fontBody }}>
+        <style>{`
+          @media print {
+            .no-print { display: none !important; }
+            article { break-inside: avoid; }
+            @page { margin: 18mm; }
+          }
+        `}</style>
+
+        {/* barre d'actions (masquée à l'impression) */}
+        <div
+          className="no-print"
+          style={{
+            display: "flex",
+            gap: 10,
+            justifyContent: "flex-end",
+            padding: "16px 24px",
+            borderBottom: "1px solid #E3E8EF",
+          }}
+        >
+          <button
+            onClick={() => setEcran("cave")}
+            style={{ ...boutonLigne, color: NAVY, border: `1px solid ${NAVY}55` }}
+          >
+            Retour à la cave
+          </button>
+          <button onClick={() => window.print()} style={{ ...boutonPlein, background: NAVY, color: "#fff" }}>
+            Imprimer / PDF
+          </button>
+        </div>
+
+        <div style={{ maxWidth: 760, margin: "0 auto", padding: "36px 24px 60px" }}>
+          <header style={{ textAlign: "center", marginBottom: 36 }}>
+            <h1 style={{ ...fontCaps, fontSize: 24, letterSpacing: "0.28em", margin: 0, color: NAVY }}>
+              PARTAGE AMIABLE
+            </h1>
+            <p style={{ ...fontSerifIt, fontSize: 17, color: "#5E7287", margin: "6px 0 0" }}>
+              Catalogue de la cave · {new Date().toLocaleDateString("fr-FR")}
+            </p>
+            <p style={{ ...fontCaps, fontSize: 9, letterSpacing: "0.3em", color: "#9AA8B8", margin: "10px 0 0" }}>
+              FIDAL NOTAIRES · {items.length} BOUTEILLE{items.length > 1 ? "S" : ""}
+            </p>
+          </header>
+
+          {regions.map((r) => (
+            <section key={r} style={{ marginBottom: 30 }}>
+              <h2
+                style={{
+                  ...fontCaps,
+                  fontSize: 12,
+                  letterSpacing: "0.24em",
+                  color: NAVY,
+                  borderBottom: `2px solid ${NAVY}`,
+                  paddingBottom: 6,
+                  margin: "0 0 16px",
+                }}
+              >
+                {r}
+              </h2>
+              {parRegion[r].map((it) => {
+                const moy = moyenne(it.avis);
+                return (
+                  <article key={it.id} style={{ display: "flex", gap: 14, marginBottom: 18 }}>
+                    <img
+                      src={srcAffiche(it)}
+                      alt=""
+                      onError={(e) => {
+                        if (it.photo && e.currentTarget.src !== it.photo) e.currentTarget.src = it.photo;
+                      }}
+                      style={{
+                        width: 44,
+                        height: 58,
+                        objectFit: "cover",
+                        borderRadius: 6,
+                        border: "1px solid #E3E8EF",
+                        flexShrink: 0,
+                      }}
+                    />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+                        <strong style={{ ...fontCaps, fontSize: 12, letterSpacing: "0.1em" }}>{it.nom}</strong>
+                        {it.detail && (
+                          <span style={{ ...fontSerifIt, fontSize: 13.5, color: "#5E7287" }}>{it.detail}</span>
+                        )}
+                      </div>
+                      <p style={{ fontSize: 11.5, color: "#8A97A8", margin: "3px 0" }}>
+                        {[it.couleur, it.prixMoyen ? `≈ ${it.prixMoyen}` : "", it.apogee ? `à boire ${it.apogee}` : "", it.accords ? `accords : ${it.accords}` : ""]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </p>
+                      {(it.noteGuide || moy !== null) && (
+                        <p style={{ fontSize: 12.5, margin: "3px 0", color: NAVY }}>
+                          {it.noteGuide && (
+                            <strong>
+                              {it.guide ? `${it.guide} · ` : ""}
+                              {it.noteGuide}
+                            </strong>
+                          )}
+                          {it.noteGuide && moy !== null && " — "}
+                          {moy !== null &&
+                            `Cabinet : ${moy.toFixed(1).replace(".", ",")}/10 (${it.avis.filter((a) => a.note > 0).length} avis)`}
+                        </p>
+                      )}
+                      {it.commentaireGuide && (
+                        <p style={{ ...fontSerifIt, fontSize: 13, color: "#5E7287", margin: "3px 0" }}>
+                          « {it.commentaireGuide} »
+                        </p>
+                      )}
+                      {(it.avis || [])
+                        .filter((a) => a.texte)
+                        .map((a, i) => (
+                          <p key={i} style={{ fontSize: 12, color: "#5E7287", margin: "3px 0" }}>
+                            <span style={{ ...fontCaps, fontSize: 9.5, letterSpacing: "0.12em", color: NAVY }}>
+                              {a.par}
+                            </span>
+                            {a.note > 0 ? ` — ${a.note}/10` : ""} : <em style={fontSerifIt}>{a.texte}</em>
+                          </p>
+                        ))}
+                      <p style={{ fontSize: 10.5, color: "#9AA8B8", margin: "4px 0 0" }}>
+                        Rapporté par {it.par} le {new Date(it.date).toLocaleDateString("fr-FR")}
+                      </p>
+                    </div>
+                  </article>
+                );
+              })}
+            </section>
+          ))}
+
+          <footer style={{ ...fontCaps, fontSize: 8.5, letterSpacing: "0.26em", color: "#9AA8B8", textAlign: "center", marginTop: 40 }}>
+            FIDAL NOTAIRES · L'ABUS D'ALCOOL EST DANGEREUX POUR LA SANTÉ
+          </footer>
+        </div>
+      </div>
+    );
+  }
+
   /* ---------- la cave ---------- */
 
   return (
@@ -542,8 +772,8 @@ export default function App() {
           </button>
         </div>
 
-        {/* tris */}
-        <nav style={{ display: "flex", gap: 8, marginTop: 22, flexWrap: "wrap" }}>
+        {/* tris + affichage */}
+        <nav style={{ display: "flex", gap: 8, marginTop: 22, flexWrap: "wrap", alignItems: "center" }}>
           {[
             ["recents", "Plus récents"],
             ["aimes", "Plus aimés"],
@@ -567,7 +797,91 @@ export default function App() {
               {lib}
             </button>
           ))}
+          <span style={{ flex: 1 }} />
+          <button
+            onClick={() => setCompact((v) => !v)}
+            title="Basculer l'affichage compact"
+            style={{
+              ...fontCaps,
+              fontSize: 10,
+              letterSpacing: "0.18em",
+              padding: "8px 14px",
+              borderRadius: 999,
+              cursor: "pointer",
+              background: compact ? C.teal : "transparent",
+              color: compact ? C.nuit : C.gris,
+              border: `1px solid ${compact ? C.teal : C.filet}`,
+            }}
+          >
+            Compact
+          </button>
+          <button
+            onClick={() => setEcran("catalogue")}
+            style={{
+              ...fontCaps,
+              fontSize: 10,
+              letterSpacing: "0.18em",
+              padding: "8px 14px",
+              borderRadius: 999,
+              cursor: "pointer",
+              background: "transparent",
+              color: C.gris,
+              border: `1px solid ${C.filet}`,
+            }}
+          >
+            Catalogue
+          </button>
         </nav>
+
+        {/* recherche + filtres */}
+        <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap", alignItems: "center" }}>
+          <input
+            style={{ ...champ, flex: "1 1 180px", padding: "9px 14px", fontSize: 13 }}
+            placeholder="Rechercher (domaine, appellation, associé…)"
+            value={recherche}
+            onChange={(e) => setRecherche(e.target.value)}
+          />
+          {regionsPresentes.length > 1 && (
+            <select
+              style={{ ...champ, width: "auto", padding: "9px 12px", fontSize: 13, cursor: "pointer" }}
+              value={filtreRegion}
+              onChange={(e) => setFiltreRegion(e.target.value)}
+            >
+              <option value="">Toutes régions</option>
+              {regionsPresentes.map((r) => (
+                <option key={r} value={r}>
+                  {r}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
+        <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+          {[
+            ["", "Tous"],
+            ["rouge", "Rouge"],
+            ["blanc", "Blanc"],
+            ["ros", "Rosé"],
+            ["efferv", "Bulles"],
+          ].map(([k, lib]) => (
+            <button
+              key={lib}
+              onClick={() => setFiltreCouleur(k)}
+              style={{
+                ...fontBody,
+                fontSize: 12,
+                padding: "6px 13px",
+                borderRadius: 999,
+                cursor: "pointer",
+                background: filtreCouleur === k ? C.teal : "transparent",
+                color: filtreCouleur === k ? C.nuit : C.gris,
+                border: `1px solid ${filtreCouleur === k ? C.teal : C.filet}`,
+              }}
+            >
+              {lib}
+            </button>
+          ))}
+        </div>
       </header>
 
       {/* formulaire : nouveau rapport */}
@@ -640,8 +954,21 @@ export default function App() {
                 (fInfos.nom || fInfos.appellation) && (
                   <p style={{ ...fontSerifIt, color: C.gris, fontSize: 13.5, margin: "0 0 12px" }}>
                     Identifié{fInfos.confiance === "basse" ? " (à vérifier)" : ""}
-                    {[fInfos.region, fInfos.couleur].filter(Boolean).length > 0
-                      ? " : " + [fInfos.region, fInfos.couleur].filter(Boolean).join(" · ")
+                    {[
+                      fInfos.region,
+                      fInfos.couleur,
+                      fInfos.noteGuide ? `${fInfos.guide || "guide"} ${fInfos.noteGuide}` : "",
+                      fInfos.prixMoyen ? `≈ ${fInfos.prixMoyen}` : "",
+                    ].filter(Boolean).length > 0
+                      ? " : " +
+                        [
+                          fInfos.region,
+                          fInfos.couleur,
+                          fInfos.noteGuide ? `${fInfos.guide || "guide"} ${fInfos.noteGuide}` : "",
+                          fInfos.prixMoyen ? `≈ ${fInfos.prixMoyen}` : "",
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")
                       : ""}{" "}
                     — corrigez si besoin.
                   </p>
@@ -749,22 +1076,97 @@ export default function App() {
       <main style={{ maxWidth: 680, margin: "0 auto", padding: "22px 20px 40px", display: "grid", gap: 18 }}>
         {chargement ? (
           <p style={{ ...fontSerifIt, color: C.gris, textAlign: "center", fontSize: 16 }}>Ouverture de la cave…</p>
-        ) : triés.length === 0 ? (
+        ) : filtrés.length === 0 ? (
           <div style={{ ...tuile, padding: "50px 20px", textAlign: "center" }}>
             <PictoCave taille={52} couleur={C.tealDim} />
-            <p style={{ ...fontSerifIt, color: C.gris, fontSize: 17, margin: "18px 0 6px" }}>La masse à partager est vide.</p>
-            <p style={{ color: C.grisFonce, fontSize: 13, margin: 0 }}>Soyez le premier à faire rapport d'une bouteille.</p>
+            {items.length === 0 ? (
+              <>
+                <p style={{ ...fontSerifIt, color: C.gris, fontSize: 17, margin: "18px 0 6px" }}>La masse à partager est vide.</p>
+                <p style={{ color: C.grisFonce, fontSize: 13, margin: 0 }}>Soyez le premier à faire rapport d'une bouteille.</p>
+              </>
+            ) : (
+              <>
+                <p style={{ ...fontSerifIt, color: C.gris, fontSize: 17, margin: "18px 0 6px" }}>Aucune bouteille ne correspond.</p>
+                <p style={{ color: C.grisFonce, fontSize: 13, margin: 0 }}>Essayez d'élargir la recherche ou les filtres.</p>
+              </>
+            )}
           </div>
         ) : (
-          triés.map((it) => {
+          filtrés.map((it) => {
             const moy = moyenne(it.avis);
+
+            // Mode compact : carte repliée, un clic pour déplier
+            if (compact && !deplies[it.id]) {
+              return (
+                <article
+                  key={it.id}
+                  onClick={() => setDeplies((d) => ({ ...d, [it.id]: true }))}
+                  style={{ ...tuile, overflow: "hidden", cursor: "pointer" }}
+                >
+                  <div style={{ display: "flex", gap: 12, padding: 12, alignItems: "center" }}>
+                    <img
+                      src={srcAffiche(it)}
+                      alt={it.nom}
+                      onError={(e) => {
+                        if (it.photo && e.currentTarget.src !== it.photo) e.currentTarget.src = it.photo;
+                      }}
+                      style={{
+                        width: 46,
+                        height: 60,
+                        objectFit: "cover",
+                        borderRadius: 8,
+                        border: `1px solid ${C.filet}`,
+                        flexShrink: 0,
+                        background: C.nuit,
+                      }}
+                    />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <h3
+                        style={{
+                          ...fontCaps,
+                          fontSize: 12,
+                          letterSpacing: "0.12em",
+                          margin: 0,
+                          color: C.blanc,
+                          whiteSpace: "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                        }}
+                      >
+                        {it.nom}
+                      </h3>
+                      {it.detail && (
+                        <p style={{ ...fontSerifIt, color: C.gris, fontSize: 13, margin: "2px 0 0" }}>{it.detail}</p>
+                      )}
+                    </div>
+                    <div style={{ textAlign: "right", flexShrink: 0 }}>
+                      {it.noteGuide && (
+                        <div style={{ ...fontBody, fontSize: 11, fontWeight: 700, color: OCRE }}>
+                          {it.guide ? `${it.guide} ` : ""}
+                          {it.noteGuide}
+                        </div>
+                      )}
+                      {moy !== null && (
+                        <div style={{ color: OCRE, fontWeight: 700, fontSize: 13 }}>
+                          {moy.toFixed(1).replace(".", ",")}/10
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </article>
+              );
+            }
+
             return (
               <article key={it.id} style={{ ...tuile, overflow: "hidden" }}>
                 <div style={{ display: "flex", gap: 16, padding: 16 }}>
                   <img
-                    src={it.photo}
+                    src={srcAffiche(it)}
                     alt={it.nom}
-                    onClick={() => setZoom(it.photo)}
+                    onError={(e) => {
+                      if (it.photo && e.currentTarget.src !== it.photo) e.currentTarget.src = it.photo;
+                    }}
+                    onClick={(e) => setZoom(e.currentTarget.src)}
                     style={{
                       width: 92,
                       height: 120,
@@ -777,15 +1179,29 @@ export default function App() {
                     }}
                   />
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <h3 style={{ ...fontCaps, fontSize: 14, letterSpacing: "0.14em", margin: "2px 0 2px", color: C.blanc }}>
-                      {it.nom}
-                    </h3>
+                    <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+                      <h3
+                        onClick={compact ? () => setDeplies((d) => ({ ...d, [it.id]: false })) : undefined}
+                        style={{
+                          ...fontCaps,
+                          fontSize: 14,
+                          letterSpacing: "0.14em",
+                          margin: "2px 0 2px",
+                          color: C.blanc,
+                          flex: 1,
+                          cursor: compact ? "pointer" : "default",
+                        }}
+                      >
+                        {it.nom}
+                      </h3>
+                      <CarteFrance region={it.region} taille={58} />
+                    </div>
                     {it.detail && (
                       <p style={{ ...fontSerifIt, color: C.gris, fontSize: 14, margin: "0 0 4px" }}>{it.detail}</p>
                     )}
-                    {(it.region || it.couleur) && (
+                    {(it.region || it.couleur || it.prixMoyen) && (
                       <p style={{ ...fontCaps, color: C.grisFonce, fontSize: 9, letterSpacing: "0.2em", margin: "0 0 6px" }}>
-                        {[it.region, it.couleur].filter(Boolean).join(" · ")}
+                        {[it.region, it.couleur, it.prixMoyen ? `≈ ${it.prixMoyen}` : ""].filter(Boolean).join(" · ")}
                       </p>
                     )}
                     {it.sensations && it.sensations.length > 0 && (
@@ -807,17 +1223,45 @@ export default function App() {
                         ))}
                       </div>
                     )}
-                    {moy !== null ? (
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                        <Etoiles note={moy} taille={15} />
+                    {it.commentaireGuide && (
+                      <p style={{ ...fontSerifIt, color: C.gris, fontSize: 13.5, margin: "0 0 8px" }}>
+                        « {it.commentaireGuide} »{it.guide ? ` — ${it.guide}` : ""}
+                      </p>
+                    )}
+                    {(it.accords || it.apogee) && (
+                      <p style={{ ...fontSerifIt, color: C.grisFonce, fontSize: 13, margin: "0 0 8px" }}>
+                        {[it.accords ? `Accords : ${it.accords}` : "", it.apogee ? `À boire : ${it.apogee}` : ""]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </p>
+                    )}
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                      {it.noteGuide && (
+                        <span
+                          style={{
+                            ...fontBody,
+                            fontSize: 12,
+                            fontWeight: 700,
+                            padding: "4px 12px",
+                            borderRadius: 999,
+                            color: OCRE,
+                            border: `1px solid ${OCRE}66`,
+                          }}
+                        >
+                          {it.guide ? `${it.guide} · ${it.noteGuide}` : it.noteGuide}
+                        </span>
+                      )}
+                      {moy !== null ? (
                         <span style={{ color: OCRE, fontWeight: 700, fontSize: 14 }}>
                           {moy.toFixed(1).replace(".", ",")}/10
+                          <span style={{ color: C.grisFonce, fontWeight: 400, fontSize: 12 }}>
+                            {" "}· cabinet · {it.avis.filter((a) => a.note > 0).length} avis
+                          </span>
                         </span>
-                        <span style={{ color: C.grisFonce, fontSize: 12 }}>· {it.avis.length} avis</span>
-                      </div>
-                    ) : (
-                      <span style={{ color: C.grisFonce, fontSize: 12 }}>Pas encore d'avis</span>
-                    )}
+                      ) : (
+                        <span style={{ color: C.grisFonce, fontSize: 12 }}>Pas encore d'avis du cabinet</span>
+                      )}
+                    </div>
                     <p style={{ color: C.grisFonce, fontSize: 11, margin: "10px 0 0" }}>
                       Par {it.par} · {new Date(it.date).toLocaleDateString("fr-FR")}
                     </p>
@@ -869,7 +1313,9 @@ export default function App() {
                       <div key={i}>
                         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                           <span style={{ ...fontCaps, fontSize: 10, color: C.teal, letterSpacing: "0.16em" }}>{a.par}</span>
-                          {a.note > 0 && <Etoiles note={a.note} taille={12} />}
+                          {a.note > 0 && (
+                            <span style={{ color: OCRE, fontWeight: 700, fontSize: 13 }}>{a.note}/10</span>
+                          )}
                         </div>
                         {a.texte && (
                           <p style={{ ...fontSerifIt, color: C.gris, fontSize: 14, margin: "4px 0 0" }}>{a.texte}</p>
@@ -882,10 +1328,28 @@ export default function App() {
                 {/* saisie d'un avis */}
                 {avisOuvert === it.id && (
                   <div style={{ borderTop: `1px solid ${C.filet}`, padding: 16, background: C.nuit + "66" }}>
-                    <div style={{ marginBottom: 10 }}>
-                      <Etoiles note={aNote} surChoix={setANote} taille={22} />
-                      <span style={{ color: C.gris, fontSize: 13, marginLeft: 10 }}>
-                        {aNote > 0 ? `${aNote}/10` : "Notez de 1 à 10"}
+                    <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 10 }}>
+                      <input
+                        type="range"
+                        min="1"
+                        max="10"
+                        step="1"
+                        value={aNote || 1}
+                        onChange={(e) => setANote(Number(e.target.value))}
+                        style={{ flex: 1, accentColor: C.teal, cursor: "pointer" }}
+                        aria-label="Note de 1 à 10"
+                      />
+                      <span
+                        style={{
+                          ...fontCaps,
+                          fontSize: 18,
+                          letterSpacing: "0.06em",
+                          color: aNote > 0 ? OCRE : C.grisFonce,
+                          minWidth: 64,
+                          textAlign: "right",
+                        }}
+                      >
+                        {aNote > 0 ? `${aNote}/10` : "—"}
                       </span>
                     </div>
                     <textarea
