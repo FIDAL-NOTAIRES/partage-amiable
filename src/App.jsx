@@ -110,22 +110,31 @@ function genId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 }
 
-function compresserImage(file, maxDim = 900, qualite = 0.78) {
+function compresserImage(file, qualite = 0.8) {
+  // Recadre systématiquement au format portrait 3:4 (centré) et redimensionne :
+  // toutes les photos de la cave ont ainsi la même belle proportion.
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = (e) => {
       const img = new Image();
       img.onload = () => {
-        let { width, height } = img;
-        if (width > maxDim || height > maxDim) {
-          const r = Math.min(maxDim / width, maxDim / height);
-          width = Math.round(width * r);
-          height = Math.round(height * r);
+        const RATIO = 3 / 4; // largeur / hauteur
+        let sx = 0, sy = 0, sw = img.width, sh = img.height;
+        if (sw / sh > RATIO) {
+          const nw = sh * RATIO;
+          sx = (sw - nw) / 2;
+          sw = nw;
+        } else {
+          const nh = sw / RATIO;
+          sy = (sh - nh) / 2;
+          sh = nh;
         }
+        const outW = Math.min(720, Math.round(sw));
+        const outH = Math.round(outW / RATIO);
         const cv = document.createElement("canvas");
-        cv.width = width;
-        cv.height = height;
-        cv.getContext("2d").drawImage(img, 0, 0, width, height);
+        cv.width = outW;
+        cv.height = outH;
+        cv.getContext("2d").drawImage(img, sx, sy, sw, sh, 0, 0, outW, outH);
         resolve(cv.toDataURL("image/jpeg", qualite));
       };
       img.onerror = () => reject(new Error("Image illisible"));
@@ -134,6 +143,114 @@ function compresserImage(file, maxDim = 900, qualite = 0.78) {
     reader.onerror = () => reject(new Error("Lecture impossible"));
     reader.readAsDataURL(file);
   });
+}
+
+function noteGuideSur100(brut) {
+  // Convertit la note d'un guide vers l'échelle /100, quelle que soit l'échelle d'origine
+  if (!brut) return null;
+  const n = brut.replace(",", ".");
+  let m = n.match(/([\d.]+)\s*\/\s*100/);
+  if (m) return Math.round(parseFloat(m[1]));
+  m = n.match(/([\d.]+)\s*\/\s*20/);
+  if (m) return Math.round(parseFloat(m[1]) * 5);
+  m = n.match(/([\d.]+)\s*\/\s*10\b/);
+  if (m) return Math.round(parseFloat(m[1]) * 10);
+  const etoiles = (brut.match(/★/g) || []).length;
+  if (etoiles) return [null, 82, 88, 94][Math.min(etoiles, 3)];
+  m = n.match(/([\d.]+)/);
+  if (m) {
+    const v = parseFloat(m[1]);
+    if (v >= 50 && v <= 100) return Math.round(v);
+  }
+  return null;
+}
+
+const LAVANDE = "#ADA2E8";
+const VERT_PRET = "#6FCF8F";
+
+function statutApogee(apogee) {
+  // Détermine où l'on se situe dans la fenêtre de dégustation
+  if (!apogee) return null;
+  const a = apogee.toLowerCase();
+  const annee = new Date().getFullYear();
+  const ans = (apogee.match(/(19|20)\d{2}/g) || []).map(Number);
+  if (a.includes("maintenant") || a.includes("dès à présent") || a.includes("a point") || a.includes("à point")) {
+    if (ans.length >= 1 && annee > Math.max(...ans)) return { etat: "passe", label: "apogée passée" };
+    return { etat: "pret", label: "à point" };
+  }
+  if (ans.length >= 2) {
+    const [d, f] = [Math.min(...ans), Math.max(...ans)];
+    if (annee < d) return { etat: "jeune", label: "encore jeune" };
+    if (annee > f) return { etat: "passe", label: "apogée passée" };
+    return { etat: "pret", label: "à point" };
+  }
+  if (ans.length === 1) {
+    if (annee < ans[0]) return { etat: "jeune", label: "encore jeune" };
+    return { etat: "pret", label: "à point" };
+  }
+  return null;
+}
+
+function SymboleApogee({ etat }) {
+  if (etat === "pret") {
+    return (
+      <span
+        style={{
+          display: "inline-block",
+          width: 9,
+          height: 9,
+          borderRadius: "50%",
+          background: VERT_PRET,
+          boxShadow: `0 0 6px ${VERT_PRET}66`,
+          flexShrink: 0,
+        }}
+        aria-label="À point"
+      />
+    );
+  }
+  if (etat === "jeune") {
+    return (
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-label="Encore jeune" style={{ flexShrink: 0 }}>
+        <path
+          d="M6 3h12M6 21h12M7 3c0 5 4 6 5 9-1 3-5 4-5 9M17 3c0 5-4 6-5 9 1 3 5 4 5 9"
+          stroke={OCRE}
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    );
+  }
+  if (etat === "passe") {
+    return (
+      <span
+        style={{
+          display: "inline-block",
+          width: 9,
+          height: 9,
+          borderRadius: "50%",
+          border: `2px solid ${ROUGE_CARTE}`,
+          boxSizing: "border-box",
+          flexShrink: 0,
+        }}
+        aria-label="Apogée passée"
+      />
+    );
+  }
+  return null;
+}
+
+function infosMillesime(it) {
+  // Millésime extrait (champ dédié ou détecté dans le détail) + appellation épurée
+  const annee = it.millesime || (it.detail || "").match(/\b(19|20)\d{2}\b/)?.[0] || "";
+  let appellation = it.detail || "";
+  if (annee) {
+    appellation = appellation
+      .replace(new RegExp("\\s*[·,–-]?\\s*" + annee + "\\s*"), " ")
+      .replace(/\s+·\s*$/, "")
+      .trim();
+  }
+  return { annee, appellation };
 }
 
 function moyenne(avis) {
@@ -313,6 +430,9 @@ export default function App() {
     }
   });
   const [avisOuvert, setAvisOuvert] = useState(null);
+  const [editionId, setEditionId] = useState(null);
+  const [eNom, setENom] = useState("");
+  const [eDetail, setEDetail] = useState("");
   const [aNote, setANote] = useState(0);
   const [aTexte, setATexte] = useState("");
   const [enregistrement, setEnregistrement] = useState(false);
@@ -403,6 +523,7 @@ export default function App() {
         detail: fDetail.trim(),
         region: fInfos?.region || "",
         couleur: fInfos?.couleur || "",
+        millesime: fInfos?.millesime || "",
         guide: fInfos?.guide || "",
         noteGuide: fInfos?.noteGuide || "",
         commentaireGuide: fInfos?.commentaireGuide || "",
@@ -476,6 +597,43 @@ export default function App() {
       });
     } catch {
       setErreur("L'avis n'a pas pu être enregistré.");
+    }
+    setEnregistrement(false);
+  }
+
+  function estProprietaire(it) {
+    return !!prenom && (prenom === it.par || prenom === "Jean-François Dumetz");
+  }
+
+  async function retirerBouteille(id) {
+    if (!window.confirm("Retirer définitivement cette bouteille de la masse ?")) return;
+    setItems((prev) => prev.filter((x) => x.id !== id));
+    try {
+      await apiJson("/api/items", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "delete", id }),
+      });
+    } catch {
+      setErreur("La suppression n'a pas pu être enregistrée.");
+      chargerCave();
+    }
+  }
+
+  async function corrigerBouteille(id) {
+    if (!eNom.trim()) return;
+    setEnregistrement(true);
+    setItems((prev) => prev.map((x) => (x.id === id ? { ...x, nom: eNom.trim(), detail: eDetail.trim() } : x)));
+    setEditionId(null);
+    try {
+      await apiJson("/api/items", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "update", id, champs: { nom: eNom.trim(), detail: eDetail.trim() } }),
+      });
+    } catch {
+      setErreur("La correction n'a pas pu être enregistrée.");
+      chargerCave();
     }
     setEnregistrement(false);
   }
@@ -699,7 +857,7 @@ export default function App() {
                         )}
                       </div>
                       <p style={{ fontSize: 11.5, color: "#8A97A8", margin: "3px 0" }}>
-                        {[it.couleur, it.prixMoyen ? `≈ ${it.prixMoyen}` : "", it.apogee ? `à boire ${it.apogee}` : "", it.accords ? `accords : ${it.accords}` : ""]
+                        {[it.couleur, it.prixMoyen ? `≈ ${it.prixMoyen}` : "", it.apogee ? `à boire ${it.apogee}${statutApogee(it.apogee) ? " (" + statutApogee(it.apogee).label + ")" : ""}` : "", it.accords ? `accords : ${it.accords}` : ""]
                           .filter(Boolean)
                           .join(" · ")}
                       </p>
@@ -708,12 +866,12 @@ export default function App() {
                           {it.noteGuide && (
                             <strong>
                               {it.guide ? `${it.guide} · ` : ""}
-                              {it.noteGuide}
+                              {noteGuideSur100(it.noteGuide) !== null ? `${noteGuideSur100(it.noteGuide)}/100` : it.noteGuide}
                             </strong>
                           )}
                           {it.noteGuide && moy !== null && " — "}
                           {moy !== null &&
-                            `Cabinet : ${moy.toFixed(1).replace(".", ",")}/10 (${it.avis.filter((a) => a.note > 0).length} avis)`}
+                            `FIDAL Notaires : ${Math.round(moy * 10)}/100 (${it.avis.filter((a) => a.note > 0).length} avis)`}
                         </p>
                       )}
                       {it.commentaireGuide && (
@@ -1113,11 +1271,13 @@ export default function App() {
                       style={{
                         width: 46,
                         height: 60,
-                        objectFit: "cover",
+                        objectFit: it.photoOff ? "contain" : "cover",
                         borderRadius: 8,
                         border: `1px solid ${C.filet}`,
                         flexShrink: 0,
-                        background: C.nuit,
+                        background: it.photoOff ? "#FFFFFF" : C.nuit,
+                        padding: it.photoOff ? 2 : 0,
+                        boxSizing: "border-box",
                       }}
                     />
                     <div style={{ flex: 1, minWidth: 0 }}>
@@ -1143,12 +1303,12 @@ export default function App() {
                       {it.noteGuide && (
                         <div style={{ ...fontBody, fontSize: 11, fontWeight: 700, color: OCRE }}>
                           {it.guide ? `${it.guide} ` : ""}
-                          {it.noteGuide}
+                          {noteGuideSur100(it.noteGuide) !== null ? `${noteGuideSur100(it.noteGuide)}/100` : it.noteGuide}
                         </div>
                       )}
                       {moy !== null && (
-                        <div style={{ color: OCRE, fontWeight: 700, fontSize: 13 }}>
-                          {moy.toFixed(1).replace(".", ",")}/10
+                        <div style={{ ...fontBody, color: OCRE, fontWeight: 700, fontSize: 11 }}>
+                          FIDAL {Math.round(moy * 10)}/100
                         </div>
                       )}
                     </div>
@@ -1160,48 +1320,69 @@ export default function App() {
             return (
               <article key={it.id} style={{ ...tuile, overflow: "hidden" }}>
                 <div style={{ display: "flex", gap: 16, padding: 16 }}>
-                  <img
-                    src={srcAffiche(it)}
-                    alt={it.nom}
-                    onError={(e) => {
-                      if (it.photo && e.currentTarget.src !== it.photo) e.currentTarget.src = it.photo;
-                    }}
-                    onClick={(e) => setZoom(e.currentTarget.src)}
-                    style={{
-                      width: 92,
-                      height: 120,
-                      objectFit: "cover",
-                      borderRadius: 12,
-                      border: `1px solid ${C.filet}`,
-                      cursor: "zoom-in",
-                      flexShrink: 0,
-                      background: C.nuit,
-                    }}
-                  />
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, flexShrink: 0 }}>
+                    <img
+                      src={srcAffiche(it)}
+                      alt={it.nom}
+                      onError={(e) => {
+                        if (it.photo && e.currentTarget.src !== it.photo) e.currentTarget.src = it.photo;
+                      }}
+                      onClick={(e) => setZoom(e.currentTarget.src)}
+                      style={{
+                        width: 96,
+                        height: 128,
+                        objectFit: it.photoOff ? "contain" : "cover",
+                        borderRadius: 12,
+                        border: `1px solid ${C.filet}`,
+                        cursor: "zoom-in",
+                        background: it.photoOff ? "#FFFFFF" : C.nuit,
+                        padding: it.photoOff ? 4 : 0,
+                        boxSizing: "border-box",
+                      }}
+                    />
+                    <CarteFrance region={it.region} taille={84} />
+                  </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
-                      <h3
-                        onClick={compact ? () => setDeplies((d) => ({ ...d, [it.id]: false })) : undefined}
-                        style={{
-                          ...fontCaps,
-                          fontSize: 14,
-                          letterSpacing: "0.14em",
-                          margin: "2px 0 2px",
-                          color: C.blanc,
-                          flex: 1,
-                          cursor: compact ? "pointer" : "default",
-                        }}
-                      >
-                        {it.nom}
-                      </h3>
-                      <CarteFrance region={it.region} taille={58} />
-                    </div>
-                    {it.detail && (
-                      <p style={{ ...fontSerifIt, color: C.gris, fontSize: 14, margin: "0 0 4px" }}>{it.detail}</p>
-                    )}
-                    {(it.region || it.couleur || it.prixMoyen) && (
+                    <h3
+                      onClick={compact ? () => setDeplies((d) => ({ ...d, [it.id]: false })) : undefined}
+                      style={{
+                        ...fontCaps,
+                        fontSize: 14,
+                        letterSpacing: "0.14em",
+                        margin: "2px 0 2px",
+                        color: C.blanc,
+                        cursor: compact ? "pointer" : "default",
+                      }}
+                    >
+                      {it.nom}
+                    </h3>
+                    {(() => {
+                      const { annee, appellation } = infosMillesime(it);
+                      return (
+                        <>
+                          {appellation && (
+                            <p style={{ ...fontSerifIt, color: C.gris, fontSize: 14, margin: "0 0 4px" }}>{appellation}</p>
+                          )}
+                          {(annee || it.prixMoyen) && (
+                            <div style={{ display: "flex", alignItems: "baseline", gap: 14, margin: "0 0 6px" }}>
+                              {annee && (
+                                <span style={{ ...fontCaps, color: C.blanc, fontSize: 19, letterSpacing: "0.1em" }}>
+                                  {annee}
+                                </span>
+                              )}
+                              {it.prixMoyen && (
+                                <span style={{ ...fontBody, color: C.teal, fontWeight: 700, fontSize: 16 }}>
+                                  ≈ {it.prixMoyen}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </>
+                      );
+                    })()}
+                    {(it.region || it.couleur) && (
                       <p style={{ ...fontCaps, color: C.grisFonce, fontSize: 9, letterSpacing: "0.2em", margin: "0 0 6px" }}>
-                        {[it.region, it.couleur, it.prixMoyen ? `≈ ${it.prixMoyen}` : ""].filter(Boolean).join(" · ")}
+                        {[it.region, it.couleur].filter(Boolean).join(" · ")}
                       </p>
                     )}
                     {it.sensations && it.sensations.length > 0 && (
@@ -1228,39 +1409,69 @@ export default function App() {
                         « {it.commentaireGuide} »{it.guide ? ` — ${it.guide}` : ""}
                       </p>
                     )}
-                    {(it.accords || it.apogee) && (
-                      <p style={{ ...fontSerifIt, color: C.grisFonce, fontSize: 13, margin: "0 0 8px" }}>
-                        {[it.accords ? `Accords : ${it.accords}` : "", it.apogee ? `À boire : ${it.apogee}` : ""]
-                          .filter(Boolean)
-                          .join(" · ")}
+                    {it.accords && (
+                      <p style={{ ...fontSerifIt, color: C.grisFonce, fontSize: 13, margin: "0 0 6px" }}>
+                        Accords : {it.accords}
                       </p>
                     )}
+                    {it.apogee &&
+                      (() => {
+                        const st = statutApogee(it.apogee);
+                        return (
+                          <p
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 7,
+                              color: LAVANDE,
+                              fontSize: 13,
+                              margin: "0 0 8px",
+                              ...fontBody,
+                            }}
+                          >
+                            {st && <SymboleApogee etat={st.etat} />}
+                            <span>
+                              À boire : {it.apogee}
+                              {st && (
+                                <span style={{ color: C.grisFonce, fontStyle: "italic" }}> — {st.label}</span>
+                              )}
+                            </span>
+                          </p>
+                        );
+                      })()}
                     <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                      {it.noteGuide && (
-                        <span
-                          style={{
-                            ...fontBody,
-                            fontSize: 12,
-                            fontWeight: 700,
-                            padding: "4px 12px",
-                            borderRadius: 999,
-                            color: OCRE,
-                            border: `1px solid ${OCRE}66`,
-                          }}
-                        >
-                          {it.guide ? `${it.guide} · ${it.noteGuide}` : it.noteGuide}
-                        </span>
-                      )}
-                      {moy !== null ? (
-                        <span style={{ color: OCRE, fontWeight: 700, fontSize: 14 }}>
-                          {moy.toFixed(1).replace(".", ",")}/10
-                          <span style={{ color: C.grisFonce, fontWeight: 400, fontSize: 12 }}>
-                            {" "}· cabinet · {it.avis.filter((a) => a.note > 0).length} avis
-                          </span>
-                        </span>
-                      ) : (
-                        <span style={{ color: C.grisFonce, fontSize: 12 }}>Pas encore d'avis du cabinet</span>
-                      )}
+                      {(() => {
+                        const nGuide = noteGuideSur100(it.noteGuide);
+                        const pastille = {
+                          ...fontBody,
+                          fontSize: 12.5,
+                          fontWeight: 700,
+                          padding: "5px 13px",
+                          borderRadius: 999,
+                          color: OCRE,
+                          border: `1px solid ${OCRE}66`,
+                          whiteSpace: "nowrap",
+                        };
+                        return (
+                          <>
+                            {it.noteGuide && (
+                              <span style={pastille}>
+                                {it.guide || "Guide"} · {nGuide !== null ? `${nGuide}/100` : it.noteGuide}
+                              </span>
+                            )}
+                            {moy !== null ? (
+                              <>
+                                <span style={pastille}>FIDAL Notaires · {Math.round(moy * 10)}/100</span>
+                                <span style={{ color: C.grisFonce, fontSize: 11 }}>
+                                  ({it.avis.filter((a) => a.note > 0).length} avis)
+                                </span>
+                              </>
+                            ) : (
+                              <span style={{ color: C.grisFonce, fontSize: 12 }}>Pas encore d'avis</span>
+                            )}
+                          </>
+                        );
+                      })()}
                     </div>
                     <p style={{ color: C.grisFonce, fontSize: 11, margin: "10px 0 0" }}>
                       Par {it.par} · {new Date(it.date).toLocaleDateString("fr-FR")}
@@ -1294,6 +1505,44 @@ export default function App() {
                   >
                     <Coeur plein={!!aimes[it.id]} /> {it.likes || 0}
                   </button>
+                  {estProprietaire(it) && (
+                    <>
+                      <button
+                        onClick={() => {
+                          setEditionId(editionId === it.id ? null : it.id);
+                          setENom(it.nom);
+                          setEDetail(it.detail || "");
+                        }}
+                        style={{
+                          background: "transparent",
+                          border: "none",
+                          cursor: "pointer",
+                          color: C.grisFonce,
+                          fontSize: 12,
+                          padding: 0,
+                          textDecoration: "underline",
+                          ...fontBody,
+                        }}
+                      >
+                        Modifier
+                      </button>
+                      <button
+                        onClick={() => retirerBouteille(it.id)}
+                        style={{
+                          background: "transparent",
+                          border: "none",
+                          cursor: "pointer",
+                          color: "#C97A6B",
+                          fontSize: 12,
+                          padding: 0,
+                          textDecoration: "underline",
+                          ...fontBody,
+                        }}
+                      >
+                        Retirer
+                      </button>
+                    </>
+                  )}
                   <button
                     style={{ ...boutonLigne, padding: "7px 14px", fontSize: 10, marginLeft: "auto" }}
                     onClick={() => {
@@ -1302,9 +1551,34 @@ export default function App() {
                       setATexte("");
                     }}
                   >
-                    {avisOuvert === it.id ? "Annuler" : "Homologuer"}
+                    {avisOuvert === it.id ? "Annuler" : "Donner un avis"}
                   </button>
                 </div>
+
+                {/* correction par le rapporteur */}
+                {editionId === it.id && (
+                  <div style={{ borderTop: `1px solid ${C.filet}`, padding: 16, background: C.nuit + "66" }}>
+                    <input
+                      style={{ ...champ, marginBottom: 10 }}
+                      placeholder="Domaine, cuvée…"
+                      value={eNom}
+                      onChange={(e) => setENom(e.target.value)}
+                    />
+                    <input
+                      style={{ ...champ, marginBottom: 12 }}
+                      placeholder="Appellation · millésime"
+                      value={eDetail}
+                      onChange={(e) => setEDetail(e.target.value)}
+                    />
+                    <button
+                      style={{ ...boutonPlein, padding: "9px 18px", fontSize: 12 }}
+                      onClick={() => corrigerBouteille(it.id)}
+                      disabled={enregistrement || !eNom.trim()}
+                    >
+                      Enregistrer la correction
+                    </button>
+                  </div>
+                )}
 
                 {/* avis existants */}
                 {it.avis && it.avis.length > 0 && (
@@ -1363,7 +1637,7 @@ export default function App() {
                       onClick={() => publierAvis(it.id)}
                       disabled={enregistrement || !aTexte.trim() || aNote === 0}
                     >
-                      {enregistrement ? "Homologation…" : "Homologuer"}
+                      {enregistrement ? "Publication…" : "Publier l'avis"}
                     </button>
                   </div>
                 )}
