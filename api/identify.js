@@ -8,6 +8,7 @@ export default async function handler(req, res) {
       console.error("identify: ANTHROPIC_API_KEY absente de l'environnement");
       return res.status(500).json({ error: "clé API manquante" });
     }
+    console.log("identify: taille image base64 =", Math.round(image.length / 1024), "Ko");
 
     const reponse = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -43,9 +44,16 @@ export default async function handler(req, res) {
       }),
     });
 
-    const data = await reponse.json();
+    // Lire en texte d'abord pour pouvoir logger même si ce n'est pas du JSON
+    const brut = await reponse.text();
+    let data;
+    try {
+      data = JSON.parse(brut);
+    } catch {
+      console.error("identify: réponse non-JSON, statut", reponse.status, "—", brut.slice(0, 300));
+      return res.status(500).json({ error: "réponse inattendue d'Anthropic", statut: reponse.status });
+    }
 
-    // Diagnostics détaillés dans les logs Vercel
     if (!reponse.ok || data.error) {
       console.error("identify: Anthropic", reponse.status, JSON.stringify(data.error || data).slice(0, 400));
       return res.status(500).json({ error: "appel Anthropic refusé", detail: data.error?.message || reponse.status });
