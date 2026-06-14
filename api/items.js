@@ -35,7 +35,7 @@ export default async function handler(req, res) {
     }
 
     if (req.method === "POST") {
-      const { action, item, id, avis } = req.body || {};
+      const { action, item, id, avis, nom, detail } = req.body || {};
 
       if (action === "create") {
         if (!item || !item.id || !item.nom || !item.photo) {
@@ -68,6 +68,26 @@ export default async function handler(req, res) {
         const data = rows[0].data;
         data.avis = [...(data.avis || []), avis];
         await sql`UPDATE rapports SET data = ${JSON.stringify(data)} WHERE id = ${id}`;
+        return res.status(200).json({ ok: true });
+      }
+
+      if (action === "update") {
+        if (!id) return res.status(400).json({ error: "id manquant" });
+        const { rows } = await sql`SELECT data FROM rapports WHERE id = ${id}`;
+        if (!rows.length) return res.status(404).json({ error: "introuvable" });
+        const data = rows[0].data;
+        // Accepte soit un objet `item` partiel, soit les champs nom/detail.
+        if (item && typeof item === "object") Object.assign(data, item);
+        if (typeof nom === "string") data.nom = nom;
+        if (typeof detail === "string") data.detail = detail;
+        data.id = id; // ne jamais altérer la clé primaire
+        await sql`UPDATE rapports SET data = ${JSON.stringify(data)} WHERE id = ${id}`;
+        return res.status(200).json({ ok: true });
+      }
+
+      if (action === "delete") {
+        if (!id) return res.status(400).json({ error: "id manquant" });
+        await sql`DELETE FROM rapports WHERE id = ${id}`;
         return res.status(200).json({ ok: true });
       }
 
