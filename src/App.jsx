@@ -104,6 +104,102 @@ const boutonLigne = {
   cursor: "pointer",
 };
 
+/* ---------- barre d'outils : libellés, pastilles et chips couleur ---------- */
+
+const labelBloc = {
+  ...fontCaps,
+  fontSize: 11,
+  letterSpacing: "0.26em",
+  color: C.gris,
+  margin: "0 0 11px",
+};
+
+const rangeeChoix = { display: "flex", flexWrap: "wrap", gap: 9 };
+
+const chipCouleur = {
+  position: "relative",
+  overflow: "hidden",
+  border: "1px solid transparent",
+  boxSizing: "border-box",
+  borderRadius: 13,
+  padding: "10px 16px",
+  ...fontCaps,
+  fontSize: 12,
+  letterSpacing: "0.15em",
+  cursor: "pointer",
+  color: C.blanc,
+  transition: "opacity .15s, transform .15s, box-shadow .15s",
+};
+
+// [valeur de filtre, libellé, fond, texte, liseré turquoise ?, bulles ?]
+const COULEURS = [
+  ["", "Tous", "#7CC4BF", "#08111E", false, false],
+  ["rouge", "Rouge", "#561A24", "#F2F6FA", false, false],
+  ["blanc", "Blanc", "#8A6F2A", "#F2F6FA", false, false],
+  ["ros", "Rosé", "#AE4F60", "#F2F6FA", false, false],
+  ["efferv", "Bulles", "#16273E", "#F2F6FA", false, true],
+];
+
+// Bulles évidées réparties sur la pastille « Bulles » : [gauche, haut(px), diamètre(px), opacité]
+const POS_BULLES = [
+  ["5%", 4, 8, 0.55],
+  ["23%", 15, 6, 0.4],
+  ["37%", 3, 5, 0.45],
+  ["50%", 17, 7, 0.4],
+  ["64%", 3, 6, 0.5],
+  ["79%", 13, 8, 0.55],
+  ["91%", 5, 5, 0.4],
+  ["14%", 27, 5, 0.35],
+  ["44%", 29, 6, 0.4],
+  ["70%", 28, 5, 0.35],
+];
+
+function Bulles() {
+  return POS_BULLES.map(([left, top, d, op], i) => (
+    <span
+      key={i}
+      aria-hidden="true"
+      style={{
+        position: "absolute",
+        left,
+        top,
+        width: d,
+        height: d,
+        borderRadius: "50%",
+        border: "1.5px solid #fff",
+        background: "transparent",
+        opacity: op,
+      }}
+    />
+  ));
+}
+
+function ombreChip(active, lisere) {
+  const parts = [];
+  if (lisere) parts.push("inset 0 0 0 1px #7CC4BF55");
+  if (active) {
+    parts.push("0 0 0 2px rgba(242,246,250,0.6)");
+    parts.push("0 6px 14px rgba(0,0,0,0.35)");
+  }
+  return parts.length ? parts.join(", ") : "none";
+}
+
+function stylePastille(active) {
+  return {
+    boxSizing: "border-box",
+    borderRadius: 13,
+    border: `1px solid ${active ? C.teal : C.filet}`,
+    background: active ? C.teal : "transparent",
+    color: active ? C.nuit : C.gris,
+    ...fontCaps,
+    fontSize: 12,
+    letterSpacing: "0.15em",
+    padding: "10px 16px",
+    cursor: "pointer",
+    transition: "all .15s",
+  };
+}
+
 /* ---------- utilitaires ---------- */
 
 function genId() {
@@ -418,7 +514,7 @@ export default function App() {
   const [recherche, setRecherche] = useState("");
   const [filtreCouleur, setFiltreCouleur] = useState("");
   const [filtreRegion, setFiltreRegion] = useState("");
-  const [compact, setCompact] = useState(false);
+  const [compact, setCompact] = useState(true);
   const [deplies, setDeplies] = useState({});
   const [formOuvert, setFormOuvert] = useState(false);
   const [zoom, setZoom] = useState(null);
@@ -629,7 +725,7 @@ export default function App() {
       await apiJson("/api/items", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "update", id, champs: { nom: eNom.trim(), detail: eDetail.trim() } }),
+        body: JSON.stringify({ action: "update", id, nom: eNom.trim(), detail: eDetail.trim() }),
       });
     } catch {
       setErreur("La correction n'a pas pu être enregistrée.");
@@ -930,115 +1026,81 @@ export default function App() {
           </button>
         </div>
 
-        {/* tris + affichage */}
-        <nav style={{ display: "flex", gap: 8, marginTop: 22, flexWrap: "wrap", alignItems: "center" }}>
-          {[
-            ["recents", "Plus récents"],
-            ["aimes", "Plus aimés"],
-            ["notes", "Mieux notés"],
-          ].map(([k, lib]) => (
-            <button
-              key={k}
-              onClick={() => setTri(k)}
-              style={{
-                ...fontCaps,
-                fontSize: 10,
-                letterSpacing: "0.18em",
-                padding: "8px 14px",
-                borderRadius: 999,
-                cursor: "pointer",
-                background: tri === k ? C.teal : "transparent",
-                color: tri === k ? C.nuit : C.gris,
-                border: `1px solid ${tri === k ? C.teal : C.filet}`,
-              }}
-            >
-              {lib}
-            </button>
-          ))}
-          <span style={{ flex: 1 }} />
-          <button
-            onClick={() => setCompact((v) => !v)}
-            title="Basculer l'affichage compact"
-            style={{
-              ...fontCaps,
-              fontSize: 10,
-              letterSpacing: "0.18em",
-              padding: "8px 14px",
-              borderRadius: 999,
-              cursor: "pointer",
-              background: compact ? C.teal : "transparent",
-              color: compact ? C.nuit : C.gris,
-              border: `1px solid ${compact ? C.teal : C.filet}`,
-            }}
-          >
-            Compact
-          </button>
-          <button
-            onClick={() => setEcran("catalogue")}
-            style={{
-              ...fontCaps,
-              fontSize: 10,
-              letterSpacing: "0.18em",
-              padding: "8px 14px",
-              borderRadius: 999,
-              cursor: "pointer",
-              background: "transparent",
-              color: C.gris,
-              border: `1px solid ${C.filet}`,
-            }}
-          >
-            Catalogue
-          </button>
-        </nav>
-
-        {/* recherche + filtres */}
-        <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap", alignItems: "center" }}>
-          <input
-            style={{ ...champ, flex: "1 1 180px", padding: "9px 14px", fontSize: 13 }}
-            placeholder="Rechercher (domaine, appellation, associé…)"
-            value={recherche}
-            onChange={(e) => setRecherche(e.target.value)}
-          />
-          {regionsPresentes.length > 1 && (
-            <select
-              style={{ ...champ, width: "auto", padding: "9px 12px", fontSize: 13, cursor: "pointer" }}
-              value={filtreRegion}
-              onChange={(e) => setFiltreRegion(e.target.value)}
-            >
-              <option value="">Toutes régions</option>
-              {regionsPresentes.map((r) => (
-                <option key={r} value={r}>
-                  {r}
-                </option>
-              ))}
-            </select>
-          )}
+        {/* Trier par */}
+        <div style={{ marginTop: 20 }}>
+          <div style={labelBloc}>Trier par</div>
+          <div style={rangeeChoix}>
+            {[
+              ["recents", "Plus récents"],
+              ["aimes", "Plus aimés"],
+              ["notes", "Mieux notés"],
+            ].map(([k, lib]) => (
+              <button key={k} onClick={() => setTri(k)} style={stylePastille(tri === k)}>
+                {lib}
+              </button>
+            ))}
+          </div>
         </div>
-        <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
-          {[
-            ["", "Tous"],
-            ["rouge", "Rouge"],
-            ["blanc", "Blanc"],
-            ["ros", "Rosé"],
-            ["efferv", "Bulles"],
-          ].map(([k, lib]) => (
-            <button
-              key={lib}
-              onClick={() => setFiltreCouleur(k)}
-              style={{
-                ...fontBody,
-                fontSize: 12,
-                padding: "6px 13px",
-                borderRadius: 999,
-                cursor: "pointer",
-                background: filtreCouleur === k ? C.teal : "transparent",
-                color: filtreCouleur === k ? C.nuit : C.gris,
-                border: `1px solid ${filtreCouleur === k ? C.teal : C.filet}`,
-              }}
-            >
-              {lib}
+
+        {/* Filtrer par couleur */}
+        <div style={{ marginTop: 18 }}>
+          <div style={labelBloc}>Filtrer par couleur</div>
+          <div style={rangeeChoix}>
+            {COULEURS.map(([k, lib, bg, fg, lisere, bulles]) => {
+              const active = filtreCouleur === k;
+              return (
+                <button
+                  key={lib}
+                  onClick={() => setFiltreCouleur(k)}
+                  aria-pressed={active}
+                  style={{
+                    ...chipCouleur,
+                    background: bg,
+                    color: fg,
+                    opacity: active ? 1 : 0.5,
+                    transform: active ? "translateY(-1px)" : "none",
+                    boxShadow: ombreChip(active, lisere),
+                  }}
+                >
+                  {bulles && <Bulles />}
+                  <span style={{ position: "relative", zIndex: 1 }}>{lib}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Filtrer par région */}
+        {regionsPresentes.length > 1 && (
+          <div style={{ marginTop: 18 }}>
+            <div style={labelBloc}>Filtrer par région</div>
+            <div style={rangeeChoix}>
+              <button onClick={() => setFiltreRegion("")} style={stylePastille(filtreRegion === "")}>
+                Toutes
+              </button>
+              {regionsPresentes.map((r) => (
+                <button key={r} onClick={() => setFiltreRegion(r)} style={stylePastille(filtreRegion === r)}>
+                  {r}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Type de vue */}
+        <div style={{ marginTop: 18 }}>
+          <div style={labelBloc}>Type de vue</div>
+          <div style={rangeeChoix}>
+            <button onClick={() => setCompact(true)} style={stylePastille(compact)}>
+              Compacte
             </button>
-          ))}
+            <button onClick={() => setCompact(false)} style={stylePastille(!compact)}>
+              Détaillée
+            </button>
+            <button onClick={() => setEcran("catalogue")} style={stylePastille(false)}>
+              Catalogue
+            </button>
+          </div>
         </div>
       </header>
 
