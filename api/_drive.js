@@ -1,7 +1,7 @@
 import { google } from "googleapis";
 
 export const DOSSIER_DRIVE_ID = "1BaUd8YRYYKRZFTWR1hKd2jwccmdiyj_K"; // Dossier PARTAGE AMIABLE
-export const FICHIER_ASSOCIES_ID = "1SwoQHUAVFj3UxHO9yOC1Yi80KoHA_nv-"; // Liste des associés (xlsx)
+export const FICHIER_ASSOCIES_ID = "10amtSne7u3XTwvgdbznlUzv9CcvzokTO"; // « Liste associés » (xlsx, 11 associés)
 
 // Lecture seule (xlsx des associés) — utilisé par api/associes.js.
 // On garde le compte de service ici : la LECTURE d'un fichier partagé fonctionne.
